@@ -545,11 +545,27 @@ class XsddOptimizationEngine(XsddEngine):
                                          Polynomial.from_smt(polynomial_weight), minimization)
         except ZeroDivisionError:
             return 0
-        
-    def compute_optimum(self, add_bounds=True, minimization=True):
+
+    def is_nonempty(self, convex_support):
+        domain = Domain(self.domain.real_vars, {v: REAL for v in self.domain.real_vars}, self.domain.var_domains)
+        return self.backend.is_nonempty(domain, BoundsWalker.get_inequalities(convex_support))
+
+    def Lipschitz_bound(self, convex_support, polynomial_weight, minimization):
+        domain = Domain(self.domain.real_vars, {v: REAL for v in self.domain.real_vars}, self.domain.var_domains)
+        return self.backend.Lipschitz_bound(domain, BoundsWalker.get_inequalities(convex_support),
+                                            Polynomial.from_smt(polynomial_weight), minimization)
+
+    def approximate_opt_by_sample(self, convex_support, polynomial_weight, minimization: bool = True,
+                                  sample_size: int = 10) -> dict or None:
+        domain = Domain(self.domain.real_vars, {v: REAL for v in self.domain.real_vars}, self.domain.var_domains)
+        return self.backend.approximate_opt_by_sample(domain, BoundsWalker.get_inequalities(convex_support),
+                                                      Polynomial.from_smt(polynomial_weight),
+                                                      minimization, sample_size)
+
+    def compute_optimum(self, add_bounds=True, minimization=True, exact=True):
         if add_bounds:
             return self.with_constraint(self.domain.get_bounds()).\
-                compute_optimum(add_bounds=False, minimization=minimization)
+                compute_optimum(add_bounds=False, minimization=minimization, exact=exact)
         abstractions, var_to_lit = dict(), dict()
 
         algebra = PolynomialAlgebra()
@@ -572,7 +588,10 @@ class XsddOptimizationEngine(XsddEngine):
         if factorized_algebra is not None and isinstance(factorized_algebra, PyXaddAlgebra):
             raise NotImplementedError()
 
-        optimum = {'value': None, 'point': None}
+        sign = 1.0 if minimization else -1.0
+        acceptable_regions = []
+        best_approximate_opt = None
+
         if self.factorized:
             raise NotImplementedError()
         else:
@@ -583,20 +602,48 @@ class XsddOptimizationEngine(XsddEngine):
                 else:
                     convex_supports = amc(ConvexWMISemiring(abstractions, var_to_lit), support)
                     logger.debug("#convex regions %s", len(convex_supports))
-                    for convex_support, variables in convex_supports:
-                        opt = self.optimize_convex(convex_support, w_weight.to_smt(), minimization)
-                        if optimum['value'] is None:
-                            optimum = opt if opt is not None else optimum
-                        elif opt is not None:
-                            if minimization:
-                                optimum = opt if factorized_algebra.less_than(
-                                                     factorized_algebra.real(opt['value']),
-                                                     factorized_algebra.real(optimum['value']))\
-                                          else optimum
-                            else:
-                                optimum = opt if factorized_algebra.greater_than(
-                                                     factorized_algebra.real(opt['value']),
-                                                     factorized_algebra.real(optimum['value']))\
-                                          else optimum
+                    for convex_support, __ in convex_supports:
+                        if self.is_nonempty(convex_support):
+                            approximate_opt = self.approximate_opt_by_sample(convex_support,
+                                                                             w_weight.to_smt(),
+                                                                             minimization)
+                            if best_approximate_opt is None or sign * (approximate_opt - best_approximate_opt) < 0:
+                                best_approximate_opt = approximate_opt
+                                if not exact:
+                                    if acceptable_regions:
+                                        acceptable_regions[0] = {'support': convex_support,
+                                                                 'weight': w_weight}
+                                    else:
+                                        acceptable_regions.insert(0, {'support': convex_support,
+                                                                      'weight': w_weight})
+                            if exact:
+                                poss_opt = self.Lipschitz_bound(convex_support, w_weight.to_smt(), minimization)
+                                if sign*(poss_opt - best_approximate_opt) < 0:
+                                    i = len(acceptable_regions)
+                                    while i > 0 and sign*(poss_opt - acceptable_regions[i-1]['poss_opt']) < 0:
+                                        i -= 1
+                                    acceptable_regions.insert(i, {'support': convex_support,
+                                                                  'weight': w_weight,
+                                                                  'appr_opt': approximate_opt,
+                                                                  'poss_opt': poss_opt})
+
+            optimum = {'value': None, 'point': None}
+            if acceptable_regions:
+                if exact:
+                    while acceptable_regions:
+                        opt = self.optimize_convex(acceptable_regions[0]['support'],
+                                                   acceptable_regions[0]['weight'].to_smt(),
+                                                   minimization)
+                        if optimum['value'] is None or sign*(opt['value'] - optimum['value']) < 0:
+                            optimum = opt
+                            k = len(acceptable_regions) - 1
+                            while k > 0 and sign*(optimum['value'] - acceptable_regions[k]['poss_opt']) < 0:
+                                del acceptable_regions[k]
+                                k -= 1
+                        del acceptable_regions[0]
+                else:
+                    optimum = self.optimize_convex(acceptable_regions[0]['support'],
+                                                   acceptable_regions[0]['weight'].to_smt(),
+                                                   minimization)
 
         return optimum

@@ -65,9 +65,11 @@ def generate_xor(n):
     xor = smt.FALSE()
     for term in terms:
         xor = (xor | term) & ~(xor & term)
-
+    weight = smt.Real(1)
+    for s in symbols:
+        weight *= smt.Pow(s,smt.Real(2))
     flipped_domain = Domain(list(reversed([v for v in domain.variables if v != "x"])) + ["x"], domain.var_types, domain.var_domains)
-    return FileDensity(flipped_domain, bounds & xor, smt.Real(1.0))
+    return FileDensity(flipped_domain, bounds & xor, weight)
 
 
 def generate_mutual_exclusive(n):
@@ -165,9 +167,10 @@ def generate_click_graph(n):
 def generate_univariate(n):
     domain = Domain.make([], ["x{}".format(i) for i in range(n)], real_bounds=(-2, 2))
     x_vars = domain.get_symbols()
-    support = smt.And(*[x > 0.5 for x in x_vars])
-    weight = smt.Times(*[smt.Ite((x > -1) & (x < 1), smt.Ite(x < 0, x + smt.Real(1), -x + smt.Real(1)), smt.Real(0))
-                         for x in x_vars])
+    support = smt.And(*[x > 0.2 for x in x_vars])
+    # weight = smt.Times(*[smt.Ite((x > -1) & (x < 1), smt.Ite(x < 0, x + smt.Real(1), -x*x + smt.Real(1)), smt.Real(0))
+    #                      for x in x_vars])
+    weight = smt.Real(2)*x_vars[0] + smt.Real(1)
     return FileDensity(domain, support, weight)
 
 
