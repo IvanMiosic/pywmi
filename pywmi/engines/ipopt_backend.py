@@ -25,8 +25,7 @@ class IpoptOptimizer(ConvexOptimizationBackend):
             self.polynomial = polynomial
             self.a = a
             self.hs = coo_matrix(np.tril(np.ones((len(domain.real_vars), len(domain.real_vars)))))
-            self.compute_value = polynomial.compute_value_from_variables(
-                sorted(self.domain.real_vars), sign)
+            self.compute_value = polynomial.get_function(sorted(self.domain.real_vars), sign)
             self.compute_gradient = polynomial.compute_gradient_from_variables(
                 sorted(self.domain.real_vars), sign)
             self.compute_hessian = polynomial.compute_hessian_from_variables(
