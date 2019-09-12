@@ -2,7 +2,7 @@ import math
 import sympy
 import numpy as np
 from fractions import Fraction
-from typing import Dict, Tuple, Union, List
+from typing import Dict, Tuple, Union, List, Callable
 
 from pysmt.exceptions import InternalSolverError
 from pysmt.shortcuts import Plus, Symbol, Real, Times, Solver
@@ -47,56 +47,90 @@ class Polynomial(object):
             result = algebra.plus(result, algebra.times(term, algebra.real(factor)))
         return result
 
-    def get_function(self, domain_variables, sign=1.0):
-        def compute_value(values):
-            parameters = dict(list(zip(domain_variables, values)))
+    # works better
+    def get_function(self, domain_variables: List[str], sign: float = 1.0) -> Callable:
+        def compute_value(values: List[float]) -> float:
+            parameters = dict(zip(domain_variables, values))
             value = 0
             for key, val in self.poly_dict.items():
+                if val == 0: continue
                 term = sign * val
                 for var in key:
                     term *= parameters[var]
+                    if term == 0: break
                 value += term
             return value
 
         return compute_value
 
-    def compute_gradient_from_variables(self, domain_variables, sign=1.0):
+    def compute_function_from_variables(self, domain_variables: List[str], sign: float = 1.0) -> Callable:
+        poly = sign*Polynomial(self.dict_plus(self.poly_dict, {(k,): 0 for k in domain_variables}))
+        function = sympy.lambdify([sympy.Symbol(var, real=True) for var in domain_variables],
+                                  sympy.sympify(poly.__str__()), modules=["scipy", "numpy"])
+
+        def compute_function(values: List[float]) -> float:
+            return function(*values)
+
+        return compute_function
+
+    def compute_gradient_from_variables(self, domain_variables: List[str], sign: float = 1.0) -> Callable:
         poly = sign*Polynomial(self.dict_plus(self.poly_dict, {(k,): 0 for k in domain_variables}))
         gradient_sympy = [sympy.sympify(poly.__str__()).diff(var) for var in domain_variables]
         gradient = [sympy.lambdify([sympy.Symbol(var, real=True) for var in domain_variables],
-                                   grad, modules=["scipy", "numpy"]) for grad in gradient_sympy]
+                                   grad, modules=["scipy", "numpy"])
+                    for grad in gradient_sympy]
 
-        def compute_gradient(values):
+        def compute_gradient(values: List[float]) -> List[float]:
             return np.array([grad(*values) for grad in gradient])
 
         return compute_gradient
 
-    def get_gradient(self, domain_variables, sign=1.0):
-        def compute_gradient(values):
-            parameters = dict(list(zip(domain_variables, values)))
+    # but this does not
+    def get_gradient(self, domain_variables: List[str], sign: float = 1.0) -> Callable:
+        def compute_gradient(values: List[float]) -> List[float]:
+            parameters = dict(zip(domain_variables, values))
+            gradient = []
+            for variable in domain_variables:
+                value = 0
+                for key, val in self.poly_dict.items():
+                    if val == 0: continue
+                    term = sign * val
+                    degree = 0
+                    for var in key:
+                        if var == variable:
+                            degree += 1
+                            if degree > 1:
+                                term *= parameters[var]
+                        else:
+                            term *= parameters[var]
+                        if term == 0: break
+                    if degree > 1:
+                        term *= degree
+                    value += term
+                gradient.append(value)
+            return gradient
 
         return compute_gradient
 
-    def compute_hessian_from_variables(self, domain_variables, hs=None, sign=1.0):
+    def compute_hessian_from_variables(self, domain_variables: Domain, hs=None, sign: float = 1.0) -> Callable:
         poly = sign*Polynomial(self.dict_plus(self.poly_dict, {(k,): 0 for k in domain_variables}))
         hessian_sympy = [[sympy.sympify(poly.__str__()).diff(var1).diff(var2) for var1 in domain_variables]
                          for var2 in domain_variables]
-        hessian = np.array([np.array([sympy.lambdify([sympy.Symbol(var, real=True)
-                                                     for var in domain_variables],
-                                                     hess, modules=["scipy", "numpy"])
-                                     for hess in row]) for row in hessian_sympy])
+        hessian = [[sympy.lambdify([sympy.Symbol(var, real=True) for var in domain_variables],
+                                   hess, modules=["scipy", "numpy"])
+                    for hess in row] for row in hessian_sympy]
 
-        def compute_hessian(values, lagrange=None, obj_factor=1.0):
+        def compute_hessian(values: List[float], lagrange=None, obj_factor=1.0) -> List[List[float]]:
             H = obj_factor*np.tril(np.array([np.array([hess(*values) for hess in row])
                                              for row in hessian]))
             return H if hs is None else H[hs.row, hs.col]
 
         return compute_hessian
 
-    def max_jacobian(self, domain_variables, max_values):
+    def max_jacobian(self, domain_variables: List[str], max_values: List[float]) -> Callable:
         """Computes the maximum value of norm of jacobian"""
-        positive_poly = Polynomial({k: abs(float(v)) for k, v in self.poly_dict.items()})
-        return np.linalg.norm(positive_poly.compute_gradient_from_variables(domain_variables)(max_values))
+        positive_poly = Polynomial({k: abs(v) for k, v in self.poly_dict.items()})
+        return np.linalg.norm(positive_poly.get_gradient(domain_variables)(max_values))
 
     def get_terms(self) -> List['Polynomial']:
         return [Polynomial({k: v}) for k, v in self.poly_dict.items()]

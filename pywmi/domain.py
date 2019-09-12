@@ -63,7 +63,7 @@ class Domain(Exportable):
                 bounds.append(symbol <= ub)
         return fm.And(*bounds)
     
-    def get_ul_bounds(self):
+    def get_ul_bounds(self) -> (List, List):
         lower_bounds, upper_bounds = [], []
         for v in sorted(self.var_domains):
             (lb, ub) = self.var_domains[v]

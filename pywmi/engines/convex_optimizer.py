@@ -18,7 +18,7 @@ class ConvexOptimizationBackend(object):
     def get_opt_matrices(domain: Domain, convex_bounds: List[LinearInequality]) -> (List, List):
         a = [[bound.a(var) for var in sorted(domain.real_vars)] for bound in convex_bounds]
         b = [bound.b() for bound in convex_bounds]
-        # domain bounds
+        # add domain bounds
         lower_bounds, upper_bounds = domain.get_ul_bounds()
         for i in range(len(lower_bounds)):
             x = [0] * len(lower_bounds)
@@ -37,13 +37,14 @@ class ConvexOptimizationBackend(object):
         return False
 
     def Lipschitz_bound(self, domain, convex_bounds: List[LinearInequality],
-                    polynomial: Polynomial, minimization: bool = True) -> float:
+                        polynomial: Polynomial, minimization: bool = True) -> float:
         """returns best possible optimum, computed using Lipschitz constant"""
         a, b = self.get_opt_matrices(domain, convex_bounds)
         polytope_vertices = np.array(pypoman.duality.compute_polytope_vertices(np.array(a), np.array(b)))
         sign = 1.0 if minimization else -1.0
         obj_function = self.get_opt_function(domain, polynomial, sign)
-        point = np.full(len(domain.real_vars), 1/len(domain.real_vars))
+        convex_coefficients = np.full(len(polytope_vertices), 1/len(polytope_vertices))
+        point = np.dot(convex_coefficients, polytope_vertices)
 
         distance = np.max([np.linalg.norm(point - vertex) for vertex in polytope_vertices])
         max_values = np.maximum.reduce([np.absolute(vertex) for vertex in polytope_vertices])
@@ -53,7 +54,7 @@ class ConvexOptimizationBackend(object):
 
     def approximate_opt_by_sample(self, domain: Domain, convex_bounds: List[LinearInequality],
                                   polynomial: Polynomial, minimization: bool = True,
-                                  sample_size: int = 10) -> float:
+                                  sample_size: int = 100) -> float:
         a, b = self.get_opt_matrices(domain, convex_bounds)
         polytope_vertices = np.array(pypoman.duality.compute_polytope_vertices(np.array(a), np.array(b)))
         sign = 1.0 if minimization else -1.0

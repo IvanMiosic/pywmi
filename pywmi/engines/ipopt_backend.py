@@ -20,7 +20,7 @@ class IpoptOptimizer(ConvexOptimizationBackend):
         super().__init__(True)
 
     class OptProblem(object):
-        def __init__(self, domain, polynomial, a, sign):
+        def __init__(self, domain: Domain, polynomial: Polynomial, a: List, sign: float = 1.0):
             self.domain = domain
             self.polynomial = polynomial
             self.a = a
@@ -49,8 +49,8 @@ class IpoptOptimizer(ConvexOptimizationBackend):
         def hessian(self, x, lagrange, obj_factor):
             return self.compute_hessian(x, lagrange, obj_factor)
 
-    def optimize(self, domain, convex_bounds: List[LinearInequality],
-                 polynomial: Polynomial, minimization: bool = True) -> dict or None:
+    def optimize(self, domain: Domain, convex_bounds: List[LinearInequality],
+                 polynomial: Polynomial, minimization: bool = True) -> dict:
         lower_bounds, upper_bounds = domain.get_ul_bounds()
         a, b = self.get_opt_matrices(domain, convex_bounds)
         initial_value = np.array(pypoman.polyhedron.compute_chebyshev_center(np.array(a), np.array(b)))
@@ -60,12 +60,11 @@ class IpoptOptimizer(ConvexOptimizationBackend):
                             lb=lower_bounds, ub=upper_bounds,
                             cl=np.full(len(b), -np.inf), cu=b)
         nlp.addOption('mu_strategy', 'adaptive')
-        nlp.addOption('print_level', 1)
+        nlp.addOption('print_level', 2)
         nlp.addOption('max_iter', 50)
-
         point, info = nlp.solve(initial_value)
         return {'value': sign*info['obj_val'],
-                'point': dict(list(zip(sorted(domain.real_vars), point)))}
+                'point': dict(zip(sorted(domain.real_vars), point))}
 
     def __str__(self):
         return "ipopt_opt"

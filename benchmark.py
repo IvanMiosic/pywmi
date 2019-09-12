@@ -167,10 +167,9 @@ def generate_click_graph(n):
 def generate_univariate(n):
     domain = Domain.make([], ["x{}".format(i) for i in range(n)], real_bounds=(-2, 2))
     x_vars = domain.get_symbols()
-    support = smt.And(*[x > 0.2 for x in x_vars])
-    # weight = smt.Times(*[smt.Ite((x > -1) & (x < 1), smt.Ite(x < 0, x + smt.Real(1), -x*x + smt.Real(1)), smt.Real(0))
-    #                      for x in x_vars])
-    weight = smt.Real(2)*x_vars[0] + smt.Real(1)
+    support = smt.And(*[x > 0.5 for x in x_vars])
+    weight = smt.Times(*[smt.Ite((x > -1) & (x < 1), smt.Ite(x < 0, x + smt.Real(1), -x*x + smt.Real(1)), smt.Real(0))
+                         for x in x_vars])
     return FileDensity(domain, support, weight)
 
 
@@ -190,9 +189,23 @@ def generate_mspn_tree(n):
     pass
 
 
+def opt(n):
+    domain = Domain.make([], ["x{}".format(i) for i in range(n)], real_bounds=(-4, 4))
+    x_vars = domain.get_symbols()
+    support = smt.And(*[x > -0.5 for x in x_vars])
+    if n==3:
+        x, y, z = x_vars[0], x_vars[1], x_vars[2]
+        weight = y*y*y*y*y + x*x*y + (-1)*x*y*z*z*z + y*z + 3*x + (-2)*x*z
+        # weight = smt.Plus(smt.Pow(x_vars[1], smt.Int(5)), smt.Times(smt.Real(-1), smt.Pow(x_vars[0], 2), x_vars[1]))
+    else:
+        weight = smt.Real(1)
+    return FileDensity(domain, support, weight)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("problem_name", choices=["xor", "mutex", "click", "uni", "dual", "dual_paths", "dual_paths_distinct"])
+    parser.add_argument("problem_name", choices=["xor", "mutex", "click", "uni", "dual", "dual_paths",
+                                                 "dual_paths_distinct", "opt"])
     parser.add_argument("size", type=str)
     parser.add_argument("-s", "--seed", default=None)
     parser.add_argument("output_file", default=None)
@@ -230,6 +243,9 @@ def main():
             elif problem_name == "dual_paths_distinct":
                 random.seed(seed)
                 density = generate_dual_paths_distinct(size)
+            elif problem_name == "opt":
+                random.seed(seed)
+                density = opt(size)
             else:
                 raise ValueError("No problem with name {}".format(problem_name))
 

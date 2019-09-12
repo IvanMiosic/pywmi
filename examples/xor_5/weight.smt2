@@ -1,0 +1,8 @@
+(set-logic QF_NRA)
+(declare-fun x0 () Real)
+(declare-fun x1 () Real)
+(declare-fun x2 () Real)
+(declare-fun x3 () Real)
+(declare-fun x4 () Real)
+(assert (let ((.def_0 (pow x4 2.0))) (let ((.def_1 (pow x3 2.0))) (let ((.def_2 (pow x2 2.0))) (let ((.def_3 (pow x1 2.0))) (let ((.def_4 (pow x0 2.0))) (let ((.def_5 (* 1.0 .def_4))) (let ((.def_6 (* .def_5 .def_3))) (let ((.def_7 (* .def_6 .def_2))) (let ((.def_8 (* .def_7 .def_1))) (let ((.def_9 (* .def_8 .def_0))) .def_9)))))))))))
+(check-sat)

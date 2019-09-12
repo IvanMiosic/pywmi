@@ -16,17 +16,10 @@ logging.basicConfig(level=logging.WARNING)
 def main():
     # TODO Fix click graph
 
-    # density = Density.from_file("res/xor2/generated_xor_14.json")
-    # density = Density.from_file("res/mutex2/generated_mutex_10.json")
-    # density = Density.from_file("res/uni/generated_uni_5.json")
-    # density = Density.from_file("res/dual/generated_dual_3.json")
-    # density = Density.from_file("res/click/generated_click_10.json")
-    # density = FileDensity.from_file("data/mutex/mutex_20")
-    # density = FileDensity.from_file("data/xor/xor_20")
-    # density = FileDensity.from_file("data/click/click_10")
-    # density = Density.from_file("data/queries_volume/sequential_2_4_4_2.txt.json")
-    # density = Density.from_file("example1/dual_paths_distinct_3.json")
-    density = FileDensity.from_file("examples/uni_6")
+    # density = FileDensity.from_file("examples/uni_8")
+    # density = FileDensity.from_file("examples/xor_6")
+    # density = FileDensity.from_file("examples/mutex_6")
+    density = FileDensity.from_file("examples/click_4")
     print("-----------------------------------------------------------")
     print("Support:")
     print(pretty_print(density.support))
@@ -65,13 +58,13 @@ def main():
     print()
 
     # XSDD:OPT-scipy
-    result_opt = XsddOptimizationEngine(density.domain, density.support,
-                                        density.weight, ScipyOptimizer()). \
-        compute_optimum(add_bounds=False, minimization=False, exact=True)
-    print("Result XSDD_OPT(scipy):", result_opt['value'], "at", result_opt['point'])
-    times.append(time.time())
-    print("Time XSDD_OPT(scipy): {:.4f}s".format(times[-1] - times[-2]))
-    print()
+    # result_opt = XsddOptimizationEngine(density.domain, density.support,
+    #                                     density.weight, ScipyOptimizer()). \
+    #     compute_optimum(add_bounds=False, minimization=False, exact=True)
+    # print("Result XSDD_OPT(scipy):", result_opt['value'], "at", result_opt['point'])
+    # times.append(time.time())
+    # print("Time XSDD_OPT(scipy): {:.4f}s".format(times[-1] - times[-2]))
+    # print()
 
     # XSDD:BR
     #print("Result XSDD(BR):", XsddEngine(density.domain, density.support, density.weight, algebra=PyXaddAlgebra()).compute_volume(add_bounds=False))
